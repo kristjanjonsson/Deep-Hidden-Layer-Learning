@@ -1,5 +1,5 @@
 import numpy as np
-import scipy as scp
+from scipy.linalg import eigh
 
 
 def gram(X):
@@ -38,7 +38,8 @@ def effectiveDimension(eigvals, p=0.95):
     percents = eigvals.cumsum() / total
     for i, pct in enumerate(percents):
         if pct > p:
-            return i
+            return i + 1
+    raise ValueError('Impossible')
 
 
 def factorize(G):
@@ -57,7 +58,7 @@ def factorize(G):
     eigvals : (M, )
         The nonzero eigenvalues of G in descending order.
     '''
-    eigvals, U = scp.linalg.eigh(G)  # This is faster than SVD.
+    eigvals, U = eigh(G)  # This is faster than SVD.
 
     # Change from ascending to descending order.
     eigvals, U = eigvals[::-1], U[:, ::-1]
@@ -75,7 +76,7 @@ def factorize(G):
 
 def hiddenTargets(XG, YG, alpha):
     '''
-    Returns the hidden targets for HG = alpha * XG + (1 - alpha) * YG.
+    Returns the hidden targets for HG = (1 - alpha) * XG + alpha * YG.
 
     Parameters
     ----------
@@ -91,5 +92,5 @@ def hiddenTargets(XG, YG, alpha):
     eigvals : (N, )
         The eigenvalues of HG in descending order.
     '''
-    HG = alpha * XG + (1 - alpha) * YG
+    HG = (1 - alpha) * XG + alpha * YG
     return factorize(HG)
