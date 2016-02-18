@@ -63,3 +63,5 @@ target/
 
 # For mac
 .DS_Store
+
+data/
