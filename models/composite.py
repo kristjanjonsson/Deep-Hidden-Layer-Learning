@@ -1,5 +1,6 @@
 import numpy as np
 from layer_utils import affine_relu_affine_forward, affine_relu_affine_backward
+from layers import affine_forward, affine_backward
 
 
 class Layer:
@@ -32,3 +33,20 @@ class AffineReluAffine:
 
     def backward(self, dout, cache):
         return affine_relu_affine_backward(dout, cache)
+
+
+class Affine:
+
+    def __init__(self, inputDim, outputDim, weightScale=None):
+        weightScale = weightScale or np.sqrt(2.0 / inputDim)
+        self.params = {}
+        self.params['W'] = np.random.normal(scale=weightScale, size=(inputDim, outputDim))
+        self.params['b'] = np.zeros(outputDim)
+
+    def forward(self, x):
+        W = self.params['W']
+        b = self.params['b']
+        return affine_forward(x, W, b)
+
+    def backward(self, dout, cache):
+        return affine_backward(dout, cache)
