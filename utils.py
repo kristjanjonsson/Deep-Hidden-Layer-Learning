@@ -63,14 +63,15 @@ def factorize(G):
     # Change from ascending to descending order.
     eigvals, U = eigvals[::-1], U[:, ::-1]
 
-    # Remove non-positive eigenvalues.
-    # All should be >= 0 but some are < 0 so probably numerical issue.
-    pos_idx = eigvals > 0
+    # Remove zero eigenvalues.
+    # Some that should be zero are very small negative or positive numbers.
+    zero_threshold = eigvals.sum() * 1e-12
+    pos_idx = eigvals > zero_threshold
     eigvals = eigvals[pos_idx]
     U = U[:, pos_idx]
 
-    sqrt_Lambda = np.diag(np.sqrt(eigvals))
-    H = U.dot(sqrt_Lambda)
+    sqrt_eigvals = np.sqrt(eigvals).reshape((1, len(eigvals)))
+    H = U * sqrt_eigvals
     return H, eigvals
 
 
