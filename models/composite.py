@@ -4,7 +4,8 @@ from models.layers import affine_forward, affine_backward
 
 
 class Layer:
-    '''API for layer classes. They need a self.params variable for their parameters.'''
+    '''API for layer classes. They need a self.params variable for their parameters.
+    Every layer class should keep their parameters in self.params dictionary mapping.'''
 
     def forward(*args, **kwargs):
         '''Returns the output and a cache variable to be used in the backwards pass.'''
@@ -15,7 +16,7 @@ class Layer:
         raise NotImplementedError()
 
 
-class AffineReluAffine:
+class AffineReluAffine(Layer):
 
     def __init__(self, inputDim, outputDim, weightScale=None):
         weightScale = weightScale or np.sqrt(2.0 / inputDim)
@@ -28,7 +29,6 @@ class AffineReluAffine:
         self.regularizedParams = ['W1', 'W2']
 
     def forward(self, x):
-        # Clear cache and gradients.
         self.cache = None
         W1 = self.params['W1']
         b1 = self.params['b1']
@@ -42,10 +42,11 @@ class AffineReluAffine:
         assert self.cache is not None
         dx, dW1, db1, dW2, db2 = affine_relu_affine_backward(dout, self.cache)
         grads = dict(W1=dW1, b1=db1, W2=dW2, b2=db2)
+        self.cache = None
         return dx, grads
 
 
-class Affine:
+class Affine(Layer):
 
     def __init__(self, inputDim, outputDim, weightScale=None):
         weightScale = weightScale or np.sqrt(2.0 / inputDim)
@@ -55,7 +56,6 @@ class Affine:
         self.regularizedParams = ['W']
 
     def forward(self, x):
-        # Clear cache and grads.
         self.cache = None
         W = self.params['W']
         b = self.params['b']
@@ -67,4 +67,5 @@ class Affine:
         assert self.cache is not None
         dx, dW, db = affine_backward(dout, self.cache)
         grads = dict(W=dW, b=db)
+        self.cache = None
         return dx, grads
