@@ -145,9 +145,10 @@ class Solver(object):
 
     # Make a deep copy of the optim_config for each parameter
     self.optim_configs = {}
-    for p in self.model.params:
-      d = {k: v for k, v in self.optim_config.items()}
-      self.optim_configs[p] = d
+    for i, layer in enumerate(self.model.layers):
+      for p in layer.params:
+        d = {k: v for k, v in self.optim_config.items()}
+        self.optim_configs[(i, p)] = d
 
 
   def _step(self):
@@ -162,16 +163,17 @@ class Solver(object):
     y_batch = self.y_train[batch_mask]
 
     # Compute loss and gradient
-    loss, grads = self.model.loss(X_batch, y_batch)
+    loss, _ = self.model.loss(X_batch, y_batch)
     self.loss_history.append(loss)
 
     # Perform a parameter update
-    for p, w in self.model.params.items():
-      dw = grads[p]
-      config = self.optim_configs[p]
-      next_w, next_config = self.update_rule(w, dw, config)
-      self.model.params[p] = next_w
-      self.optim_configs[p] = next_config
+    for i, layer in enumerate(self.model.layers):
+      for p, w in layer.params.items():
+        dw = layer.grads[p]
+        config = self.optim_configs[(i, p)]
+        next_w, next_config = self.update_rule(w, dw, config)
+        layer.params[p] = next_w
+        self.optim_configs[(i, p)] = next_config
 
 
   def check_accuracy(self, X, y, num_samples=None, batch_size=100):
@@ -258,9 +260,11 @@ class Solver(object):
         if val_acc > self.best_val_acc:
           self.best_val_acc = val_acc
           self.best_params = {}
-          for k, v in self.model.params.items():
-            self.best_params[k] = v.copy()
+          for i, layer in enumerate(self.model.layers):
+            for k, v in layer.params.items():
+              self.best_params[(i, k)] = v.copy()
 
     # At the end of training swap the best params into the model
-    self.model.params = self.best_params
+    for (i, p), v in self.best_params.items():
+      self.model.layers[i].params[p] = v
 

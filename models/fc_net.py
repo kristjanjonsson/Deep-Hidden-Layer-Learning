@@ -2,6 +2,7 @@ import numpy as np
 
 from models.layers import *
 from models.layer_utils import *
+from models.composite import *
 
 
 class FullyConnectedNet:
@@ -40,26 +41,39 @@ class FullyConnectedNet:
     self.reg = reg
     self.num_layers = 1 + len(hidden_dims)
     self.dtype = dtype
-    self.params = {}
+    self.layers = []
 
-    # Initialize parameters.
+    # Initialize layers and parameters.
     inputDim = input_dim
-    for layer in range(self.num_layers):
-      if layer < len(hidden_dims):
-        outputDim = hidden_dims[layer]
-        self.params['W' + str(layer + 1) + 'f'] = np.random.normal(scale=weight_scale, size=(inputDim, outputDim))
-        self.params['b' + str(layer + 1) + 'f'] = np.zeros(outputDim)
-        self.params['W' + str(layer + 1) + 's'] = np.random.normal(scale=weight_scale, size=(outputDim, outputDim))
-        self.params['b' + str(layer + 1) + 's'] = np.zeros(outputDim)
-      else:
-        outputDim = num_classes
-        self.params['W' + str(layer + 1)] = np.random.normal(scale=weight_scale, size=(inputDim, outputDim))
-        self.params['b' + str(layer + 1)] = np.zeros(outputDim)
+    for layer in range(len(hidden_dims)):
+      outputDim = hidden_dims[layer]
+      self.layers.append(AffineReluAffine(inputDim, outputDim, weightScale=weight_scale))
       inputDim = outputDim
 
+    outputDim = num_classes
+    self.layers.append(Affine(inputDim, outputDim, weightScale=weight_scale))
+
     # Cast all parameters to the correct datatype
-    for k, v in self.params.items():
-      self.params[k] = v.astype(dtype)
+    for layer in self.layers:
+      for k, v in layer.params.items():
+        layer.params[k] = v.astype(dtype)
+
+  @property
+  def params(self):
+    d = {}
+    for i, layer in enumerate(self.layers):
+      for p, v in layer.params.items():
+        d[(i, p)] = v
+    return d
+
+  @property
+  def grads(self):
+    d = {}
+    for i, layer in enumerate(self.layers):
+      for p, v in layer.grads.items():
+        d[(i, p)] = v
+    return d
+
 
   def loss(self, X, y=None):
     """
@@ -71,52 +85,98 @@ class FullyConnectedNet:
     mode = 'test' if y is None else 'train'
 
     # Forward pass.
-    caches = []
     out = X
-    for layer in range(1, self.num_layers):
-      W1 = self.params['W' + str(layer) + 'f']
-      b1 = self.params['b' + str(layer) + 'f']
-      W2 = self.params['W' + str(layer) + 's']
-      b2 = self.params['b' + str(layer) + 's']
-
-      out, cache = affine_relu_affine_forward(out, W1, b1, W2, b2)
-      caches.append(cache)
-
-    W_out = self.params['W' + str(self.num_layers)]
-    b_out = self.params['b' + str(self.num_layers)]
-    scores, cache_out = affine_forward(out, W_out, b_out)
+    for layer in self.layers:
+      out = layer.forward(out)
+    scores = out
 
     # If test mode return early.
     if mode == 'test':
       return scores
 
     # Backward pass.
-    grads = {}
     loss, dout = softmax_loss(scores, y)
-    dout, dW, db = affine_backward(dout, cache_out)
-    grads['W' + str(self.num_layers)] = dW
-    grads['b' + str(self.num_layers)] = db
-
-    for layer in reversed(range(1, self.num_layers)):
-      cache = caches[layer - 1]
-      dout, dW1, db1, dW2, db2 = affine_relu_affine_backward(dout, cache)
-      grads['W' + str(layer) + 'f'] = dW1
-      grads['b' + str(layer) + 'f'] = db1
-      grads['W' + str(layer) + 's'] = dW2
-      grads['b' + str(layer) + 's'] = db2
+    for layer in reversed(self.layers):
+      dout = layer.backward(dout)
 
     # Regularization terms.
     regLoss = 0
-    for layer in range(1, self.num_layers):
-      W1 = self.params['W' + str(layer) + 'f']
-      W2 = self.params['W' + str(layer) + 's']
-      grads['W' + str(layer) + 'f'] += self.reg * W1
-      grads['W' + str(layer) + 's'] += self.reg * W2
-      regLoss += np.sum(W1 * W1) + np.sum(W2 * W2)
-    W_out = self.params['W' + str(self.num_layers)]
-    grads['W' + str(self.num_layers)] += self.reg * W_out
-    regLoss += np.sum(W_out * W_out)
+    for layer in self.layers:
+      for paramName in layer.params:
+        if layer.isRegularised[paramName]:
+          W = layer.params[paramName]
+          regLoss += np.sum(W * W)
+          layer.grads[paramName] += self.reg * W
+    loss += 0.5 * self.reg * regLoss
 
+    return loss, self.grads
+
+  def __getitem__(self, key):
+    '''Returns the submodel layer[key] with a squared error loss attached to the head.'''
+    return NotImplementedError()
+
+
+class Net:
+  """
+  A custom neural net.
+  """
+
+  def __init__(self, layers, loss_function, reg=0.0, dtype=np.float32):
+    """
+    Initialize a new FullyConnectedNet.
+
+    Inputs:
+    - layers: A list of layer objects that specify the architecture. The
+      inputs and outputs of each layer needs to match.
+    - reg: Scalar giving L2 regularization strength.
+    - loss: A loss function.
+    - dtype: A numpy datatype object; all computations will be performed using
+      this datatype. float32 is faster but less accurate, so you should use
+      float64 for numeric gradient checking.
+    """
+    self.layers = layers
+    self.num_layers = len(layers)
+    self.loss_function = loss_function
+    self.reg = reg
+    self.dtype = dtype
+
+    # Cast all parameters to the correct datatype
+    for layer in self.layers:
+      for k, v in layer.params.items():
+        layer.params[k] = v.astype(dtype)
+
+  def loss(self, X, y=None):
+    """
+    Compute loss and gradient for the fully-connected net.
+    """
+    X = X.astype(self.dtype)
+    mode = 'test' if y is None else 'train'
+
+    # Forward pass.
+    out = X
+    for layer in self.layers:
+      out = layer.forward(out)
+    scores = out
+
+    # If test mode return early.
+    if mode == 'test':
+      return scores
+
+    # Backward pass.
+    grads = []
+    loss, dout = self.loss_function(scores, y)
+    for layer in reversed(self.layers):
+      dout, layer_grads = layer.backward(dout)
+      grads.append(layer_grads)
+
+    # Regularization terms.
+    regLoss = 0
+    for layer in self.layers:
+      for paramName in layer.params:
+        if layer.isRegularised[paramName]:
+          W = layer.params[paramName]
+          regLoss += np.sum(W * W)
+          layer.grads[paramName] += self.reg * W
     loss += 0.5 * self.reg * regLoss
 
     return loss, grads
