@@ -163,13 +163,13 @@ class Solver(object):
     y_batch = self.y_train[batch_mask]
 
     # Compute loss and gradient
-    loss, _ = self.model.loss(X_batch, y_batch)
+    loss, grads = self.model.loss(X_batch, y_batch)
     self.loss_history.append(loss)
 
     # Perform a parameter update
     for i, layer in enumerate(self.model.layers):
       for p, w in layer.params.items():
-        dw = layer.grads[p]
+        dw = grads[(i, p)]
         config = self.optim_configs[(i, p)]
         next_w, next_config = self.update_rule(w, dw, config)
         layer.params[p] = next_w

@@ -25,11 +25,11 @@ class AffineReluAffine:
         self.params['b1'] = np.zeros(outputDim)
         self.params['W2'] = np.random.normal(scale=weightScale, size=(outputDim, outputDim))
         self.params['b2'] = np.zeros(outputDim)
-        self.isRegularised = dict(W1=True, W2=True, b1=False, b2=False)
+        self.regularizedParams = ['W1', 'W2']
 
     def forward(self, x):
         # Clear cache and gradients.
-        self.cache, self.grads = None, None
+        self.cache = None
         W1 = self.params['W1']
         b1 = self.params['b1']
         W2 = self.params['W2']
@@ -41,8 +41,8 @@ class AffineReluAffine:
     def backward(self, dout):
         assert self.cache is not None
         dx, dW1, db1, dW2, db2 = affine_relu_affine_backward(dout, self.cache)
-        self.grads = dict(W1=dW1, b1=db1, W2=dW2, b2=db2)
-        return dx
+        grads = dict(W1=dW1, b1=db1, W2=dW2, b2=db2)
+        return dx, grads
 
 
 class Affine:
@@ -52,11 +52,11 @@ class Affine:
         self.params = {}
         self.params['W'] = np.random.normal(scale=weightScale, size=(inputDim, outputDim))
         self.params['b'] = np.zeros(outputDim)
-        self.isRegularised = dict(W=True, b=False)
+        self.regularizedParams = ['W']
 
     def forward(self, x):
         # Clear cache and grads.
-        self.cache, self.grads = None, None
+        self.cache = None
         W = self.params['W']
         b = self.params['b']
         out, cache = affine_forward(x, W, b)
@@ -66,5 +66,5 @@ class Affine:
     def backward(self, dout):
         assert self.cache is not None
         dx, dW, db = affine_backward(dout, self.cache)
-        self.grads = dict(W=dW, b=db)
-        return dx
+        grads = dict(W=dW, b=db)
+        return dx, grads

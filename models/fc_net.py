@@ -95,21 +95,23 @@ class FullyConnectedNet:
       return scores
 
     # Backward pass.
+    grads = {}
     loss, dout = softmax_loss(scores, y)
-    for layer in reversed(self.layers):
-      dout = layer.backward(dout)
+    for i in reversed(range(self.num_layers)):
+      layer = self.layers[i]
+      dout, grads_i = layer.backward(dout)
+      grads.update({(i, p): w for p, w in grads_i.items()})
 
     # Regularization terms.
     regLoss = 0
-    for layer in self.layers:
-      for paramName in layer.params:
-        if layer.isRegularised[paramName]:
-          W = layer.params[paramName]
-          regLoss += np.sum(W * W)
-          layer.grads[paramName] += self.reg * W
+    for i, layer in enumerate(self.layers):
+      for paramName in layer.regularizedParams:
+        W = layer.params[paramName]
+        regLoss += np.sum(W * W)
+        grads[(i, paramName)] += self.reg * W
     loss += 0.5 * self.reg * regLoss
 
-    return loss, self.grads
+    return loss, grads
 
   def __getitem__(self, key):
     '''Returns the submodel layer[key] with a squared error loss attached to the head.'''
