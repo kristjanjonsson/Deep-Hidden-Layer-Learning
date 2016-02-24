@@ -1,9 +1,7 @@
 import numpy as np
 
-from models.layers import *
-from models.layer_utils import *
-from models.composite import *
-from models.losses import *
+from models.layers import AffineReluAffine, Affine
+from models.losses import softmax_loss, squared_loss
 
 
 class Net:
@@ -16,8 +14,8 @@ class Net:
     Wrap a net around layers with the given loss function.
 
     Inputs:
-    - layers: A list of layer objects that specify the architecture. The
-      inputs and outputs of each layer needs to match.
+    - layers: A list of layer objects that specify the architecture. The dimensions of
+      consequtive layers needs to match.
     - reg: Scalar giving L2 regularization strength.
     - loss: A loss function.
     - dtype: A numpy datatype object; all computations will be performed using

@@ -1,6 +1,10 @@
 from __future__ import division
 import numpy as np
 
+"""
+Functions for calculating forward and backprop for simple single units.
+"""
+
 
 def affine_forward(x, w, b):
   """
