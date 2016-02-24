@@ -1,86 +1,71 @@
-from __future__ import division
 import numpy as np
+from models.layer_utils import affine_relu_affine_forward, affine_relu_affine_backward
+from models.layers import affine_forward, affine_backward
 
 
-def affine_forward(x, w, b):
-  """
-  Computes the forward pass for an affine (fully-connected) layer.
+class Layer:
+    '''API for layer classes. They need a self.params variable for their parameters.
+    Every layer class should keep their parameters in self.params dictionary mapping.'''
 
-  The input x has shape (N, d_1, ..., d_k) and contains a minibatch of N
-  examples, where each example x[i] has shape (d_1, ..., d_k). We will
-  reshape each input into a vector of dimension D = d_1 * ... * d_k, and
-  then transform it to an output vector of dimension M.
+    def forward(*args, **kwargs):
+        '''Returns the output and a cache variable to be used in the backwards pass.'''
+        raise NotImplementedError()
 
-  Inputs:
-  - x: A numpy array containing input data, of shape (N, d_1, ..., d_k)
-  - w: A numpy array of weights, of shape (D, M)
-  - b: A numpy array of biases, of shape (M,)
-
-  Returns a tuple of:
-  - out: output, of shape (N, M)
-  - cache: (x, w, b)
-  """
-  N = x.shape[0]
-  D = np.prod(x.shape[1:])
-  xtrans = x.reshape((N, D))
-  out = xtrans.dot(w) + b
-  cache = (x, w, b)
-  return out, cache
+    def backward(*args, **kwargs):
+        '''Returns dx, grads, where grads are the gradients for this layer's parameters.'''
+        raise NotImplementedError()
 
 
-def affine_backward(dout, cache):
-  """
-  Computes the backward pass for an affine layer.
+class AffineReluAffine(Layer):
 
-  Inputs:
-  - dout: Upstream derivative, of shape (N, M)
-  - cache: Tuple of:
-    - x: Input data, of shape (N, d_1, ... d_k)
-    - w: Weights, of shape (D, M)
+    def __init__(self, inputDim, outputDim, weightScale=None):
+        weightScale = weightScale or np.sqrt(2.0 / inputDim)
 
-  Returns a tuple of:
-  - dx: Gradient with respect to x, of shape (N, d1, ..., d_k)
-  - dw: Gradient with respect to w, of shape (D, M)
-  - db: Gradient with respect to b, of shape (M,)
-  """
-  x, w, b = cache
-  N = dout.shape[0]
-  D, M = w.shape
-  x_shaped = x.reshape((N, D))
-  dx = dout.dot(w.T).reshape(x.shape)
-  dw = x_shaped.T.dot(dout)
-  db = dout.sum(axis=0)
+        self.params = {}
+        self.params['W1'] = np.random.normal(scale=weightScale, size=(inputDim, outputDim))
+        self.params['b1'] = np.zeros(outputDim)
+        self.params['W2'] = np.random.normal(scale=weightScale, size=(outputDim, outputDim))
+        self.params['b2'] = np.zeros(outputDim)
+        self.regularizedParams = ['W1', 'W2']
 
-  return dx, dw, db
+    def forward(self, x):
+        self.cache = None
+        W1 = self.params['W1']
+        b1 = self.params['b1']
+        W2 = self.params['W2']
+        b2 = self.params['b2']
+        out, cache = affine_relu_affine_forward(x, W1, b1, W2, b2)
+        self.cache = cache
+        return out
 
-
-def relu_forward(x):
-  """
-  Computes the forward pass for a layer of rectified linear units (ReLUs).
-
-  Input:
-  - x: Inputs, of any shape
-
-  Returns a tuple of:
-  - out: Output, of the same shape as x
-  - cache: x
-  """
-  out = x * (x > 0)
-  cache = x
-  return out, cache
+    def backward(self, dout):
+        assert self.cache is not None
+        dx, dW1, db1, dW2, db2 = affine_relu_affine_backward(dout, self.cache)
+        grads = dict(W1=dW1, b1=db1, W2=dW2, b2=db2)
+        self.cache = None
+        return dx, grads
 
 
-def relu_backward(dout, cache):
-  """
-  Computes the backward pass for a layer of rectified linear units (ReLUs).
+class Affine(Layer):
 
-  Input:
-  - dout: Upstream derivatives, of any shape
-  - cache: Input x, of same shape as dout
+    def __init__(self, inputDim, outputDim, weightScale=None):
+        weightScale = weightScale or np.sqrt(2.0 / inputDim)
+        self.params = {}
+        self.params['W'] = np.random.normal(scale=weightScale, size=(inputDim, outputDim))
+        self.params['b'] = np.zeros(outputDim)
+        self.regularizedParams = ['W']
 
-  Returns:
-  - dx: Gradient with respect to x
-  """
-  x = cache
-  dx = dout * (x > 0)
-  return dx
+    def forward(self, x):
+        self.cache = None
+        W = self.params['W']
+        b = self.params['b']
+        out, cache = affine_forward(x, W, b)
+        self.cache = cache
+        return out
+
+    def backward(self, dout):
+        assert self.cache is not None
+        dx, dW, db = affine_backward(dout, self.cache)
+        grads = dict(W=dW, b=db)
+        self.cache = None
+        return dx, grads
