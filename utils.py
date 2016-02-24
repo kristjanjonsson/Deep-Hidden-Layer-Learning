@@ -93,5 +93,6 @@ def hiddenTargets(XG, YG, alpha):
     eigvals : (N, )
         The eigenvalues of HG in descending order.
     '''
-    HG = (1 - alpha) * XG + alpha * YG
+    HG = (1 - alpha) * XG
+    HG += alpha * YG
     return factorize(HG)
