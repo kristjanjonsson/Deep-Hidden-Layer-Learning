@@ -122,5 +122,3 @@ class AffineReluAffineNet(Net):
       sublayers = [sublayers]
 
     return Subnet(self, sublayers, squared_loss)
-
-
