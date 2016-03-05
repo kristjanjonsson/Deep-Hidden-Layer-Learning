@@ -3,7 +3,7 @@ import numpy as np
 from models import optim
 
 
-class Solver(object):
+class Solver:
   """
   A Solver encapsulates all the logic necessary for training classification
   models. The Solver performs stochastic gradient descent using different
@@ -71,7 +71,7 @@ class Solver(object):
       names to gradients of the loss with respect to those parameters.
   """
 
-  def __init__(self, model, data, **kwargs):
+  def __init__(self, model, data, classification=True, **kwargs):
     """
     Construct a new Solver instance.
 
@@ -105,6 +105,7 @@ class Solver(object):
     self.y_train = data['y_train']
     self.X_val = data['X_val']
     self.y_val = data['y_val']
+    self.classification = classification
 
     # Unpack keyword arguments
     self.update_rule = kwargs.pop('update_rule', 'sgd')
@@ -216,6 +217,48 @@ class Solver(object):
 
     return acc
 
+  def check_loss(self, X, y, num_samples=None, batch_size=100):
+    """
+    Check loss of the model on the provided data for regression tasks.
+
+    Inputs:
+    - X: Array of data, of shape (N, d_1, ..., d_k)
+    - y: Array of labels, of shape (N, d_y)
+    - num_samples: If not None, subsample the data and only test the model
+      on num_samples datapoints.
+    - batch_size: Split X and y into batches of this size to avoid using too
+      much memory.
+
+    Returns:
+    - total_loss: Scalar giving the loss of the model.
+    """
+
+    # Maybe subsample the data
+    N = X.shape[0]
+    if num_samples is not None and N > num_samples:
+      mask = np.random.choice(N, num_samples)
+      N = num_samples
+      X = X[mask]
+      y = y[mask]
+
+    # Compute loss in batches.
+    total_loss = 0
+    num_batches = N // batch_size
+    for i in range(num_batches):
+      start = i * batch_size
+      end = (i + 1) * batch_size
+      loss, _ = self.model.loss(X[start:end], y[start:end])
+      total_loss += batch_size * loss
+    if N % batch_size != 0:
+      start = num_batches * batch_size
+      end = N
+      assert start < end, 'Bug'
+      loss, _ = self.model.loss(X[start:end], y[start:end])
+      total_loss += (end - start) * loss
+    total_loss /= N
+
+    return total_loss
+
 
   def train(self):
     """
@@ -246,15 +289,27 @@ class Solver(object):
       first_it = (t == 0)
       last_it = (t == num_iterations + 1)
       if first_it or last_it or epoch_end:
-        train_acc = self.check_accuracy(self.X_train, self.y_train,
-                                        num_samples=1000)
-        val_acc = self.check_accuracy(self.X_val, self.y_val)
-        self.train_acc_history.append(train_acc)
-        self.val_acc_history.append(val_acc)
+        if self.classification:
+          train_acc = self.check_accuracy(self.X_train, self.y_train,
+                                          num_samples=1000)
+          val_acc = self.check_accuracy(self.X_val, self.y_val)
+          self.train_acc_history.append(train_acc)
+          self.val_acc_history.append(val_acc)
 
-        if self.verbose:
-          print('(Epoch %d / %d) train acc: %f; val_acc: %f' % (
-                 self.epoch, self.num_epochs, train_acc, val_acc))
+          if self.verbose:
+            print('(Epoch %d / %d) train acc: %f; val_acc: %f' % (
+                  self.epoch, self.num_epochs, train_acc, val_acc))
+        else:
+          # For regression we use loss instead of accuracy.
+          train_acc = self.check_loss(self.X_train, self.y_train,
+                                      num_samples=1000)
+          val_acc = self.check_loss(self.X_val, self.y_val)
+          self.train_acc_history.append(train_acc)
+          self.val_acc_history.append(val_acc)
+
+          if self.verbose:
+            print('(Epoch %d / %d) train loss: %f; val_loss: %f' % (
+                  self.epoch, self.num_epochs, train_acc, val_acc))
 
         # Keep track of the best model
         if val_acc > self.best_val_acc:
