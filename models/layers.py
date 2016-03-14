@@ -1,5 +1,10 @@
 import numpy as np
-from models.backprop import affine_forward, affine_backward, relu_backward, relu_forward
+from models.backprop import (
+    affine_forward, affine_backward,
+    relu_backward, relu_forward,
+    sigmoid_forward, sigmoid_backward,
+    scale_shift_forward, scale_shift_backward
+)
 
 
 class Layer:
@@ -60,6 +65,39 @@ class AffineReluAffine(Layer):
         dx, dW1, db1 = affine_backward(da, fc_cache1)
 
         grads = {'W1': dW1, 'b1': db1, 'W2': dW2, 'b2': db2}
+        return dx, grads
+
+
+class AffineSigmoidScale(Layer):
+    '''A composite layer consisting of an Affine-Sigmoid-Scale transform.'''
+
+    def __init__(self, inputDim, outputDim, weightScale=None):
+        weightScale = weightScale or np.sqrt(2.0 / inputDim)
+
+        self.params = {}
+        self.params['W'] = np.random.normal(scale=weightScale, size=(inputDim, outputDim))
+        self.params['b'] = np.zeros(outputDim)
+        self.params['sigma'] = np.ones(outputDim)
+        self.params['mu'] = np.zeros(outputDim)
+        self.regularizedParams = ['W']
+
+    def forward(self, x):
+        W, b = self.params['W'], self.params['b']
+        sigma, mu = self.params['sigma'], self.params['mu']
+        a, fc_cache = affine_forward(x, W, b)
+        a2, sigmoid_cache = sigmoid_forward(a)
+        out, scale_cache = scale_shift_forward(a2, sigma, mu)
+
+        self.cache = (fc_cache, sigmoid_cache, scale_cache)
+        return out
+
+    def backward(self, dout):
+        fc_cache, sigmoid_cache, scale_cache = self.cache
+        da2, dsigma, dmu = scale_shift_backward(dout, scale_cache)
+        da = sigmoid_backward(da2, sigmoid_cache)
+        dx, dW, db = affine_backward(da, fc_cache)
+
+        grads = {'W': dW, 'b': db, 'sigma': dsigma, 'mu': dmu}
         return dx, grads
 
 

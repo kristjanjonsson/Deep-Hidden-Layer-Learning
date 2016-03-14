@@ -1,6 +1,6 @@
 import numpy as np
 
-from models.layers import AffineReluAffine, Affine
+from models.layers import AffineReluAffine, Affine, AffineSigmoidScale
 from models.losses import softmax_loss, squared_loss
 
 
@@ -108,6 +108,40 @@ class AffineReluAffineNet(Net):
     for layer in range(len(hidden_dims)):
       outputDim = hidden_dims[layer]
       layers.append(AffineReluAffine(inputDim, outputDim, weightScale=weight_scale))
+      inputDim = outputDim
+
+    outputDim = num_classes
+    layers.append(Affine(inputDim, outputDim, weightScale=weight_scale))
+
+    super().__init__(layers, softmax_loss, reg=reg, dtype=dtype)
+
+  def __getitem__(self, key):
+    '''Returns the submodel layers[key] with a squared error loss attached to the head.'''
+    sublayers = self.layers[key]
+    if type(sublayers) is not list:
+      sublayers = [sublayers]
+
+    return Subnet(self, sublayers, squared_loss)
+
+
+class AffineSigmoidScaleNet(Net):
+  """
+  A fully-connected neural network with an arbitrary number of hidden layers,
+  ReLU nonlinearities, and a softmax loss function. For a network with L layers,
+  the architecture will be
+
+  {affine - sigmoid - scale} x (L - 1) - affine - softmax
+  """
+  def __init__(self, hidden_dims, input_dim=28*28, num_classes=10,
+               reg=0.0, weight_scale=1e-2, dtype=np.float32):
+
+    layers = []
+
+    # Initialize layers and parameters.
+    inputDim = input_dim
+    for layer in range(len(hidden_dims)):
+      outputDim = hidden_dims[layer]
+      layers.append(AffineSigmoidScale(inputDim, outputDim, weightScale=weight_scale))
       inputDim = outputDim
 
     outputDim = num_classes
